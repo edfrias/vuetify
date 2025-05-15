@@ -52,6 +52,7 @@ Lists come in three main variations. **single-line** (default), **two-line** and
   To ensure proper indentation when using **v-list-group** with a **prepend-icon**, the **prepend-icon** must be applied directly to the **v-list-group** instead of its activator **v-list-item**.
 
 For instance, the following example works:
+
 ```html
 <template>
   <v-list-group prepend-icon="mdi-home" >
@@ -61,7 +62,9 @@ For instance, the following example works:
   </v-list-group>
 </template>
 ```
+
 However, this one does not:
+
 ```html
 <template>
   <v-list-group>
@@ -71,6 +74,7 @@ However, this one does not:
   </v-list-group>
 </template>
 ```
+
 :::
 
 ## Examples
