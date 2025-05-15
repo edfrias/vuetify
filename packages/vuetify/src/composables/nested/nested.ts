@@ -2,7 +2,17 @@
 import { useProxiedModel } from '@/composables/proxiedModel'
 
 // Utilities
-import { computed, inject, onBeforeUnmount, provide, ref, shallowRef, toRaw, toRef } from 'vue'
+import {
+  computed,
+  inject,
+  onBeforeMount,
+  onBeforeUnmount,
+  provide,
+  ref,
+  shallowRef,
+  toRaw,
+  toRef, toValue,
+} from 'vue'
 import {
   independentActiveStrategy,
   independentSingleActiveStrategy,
@@ -16,11 +26,12 @@ import {
   independentSingleSelectStrategy,
   leafSelectStrategy,
   leafSingleSelectStrategy,
+  trunkSelectStrategy,
 } from './selectStrategies'
-import { consoleError, getCurrentInstance, getUid, propsFactory } from '@/util'
+import { consoleError, getCurrentInstance, propsFactory } from '@/util'
 
 // Types
-import type { InjectionKey, PropType, Ref } from 'vue'
+import type { InjectionKey, MaybeRefOrGetter, PropType, Ref } from 'vue'
 import type { ActiveStrategy } from './activeStrategies'
 import type { OpenStrategy } from './openStrategies'
 import type { SelectStrategy } from './selectStrategies'
@@ -39,6 +50,7 @@ export type SelectStrategyProp =
   | 'independent'
   | 'single-independent'
   | 'classic'
+  | 'trunk'
   | SelectStrategy
   | ((mandatory: boolean) => SelectStrategy)
 export type OpenStrategyProp = 'single' | 'multiple' | 'list' | OpenStrategy
@@ -144,6 +156,7 @@ export const useNested = (props: NestedProps) => {
       case 'leaf': return leafSelectStrategy(props.mandatory)
       case 'independent': return independentSelectStrategy(props.mandatory)
       case 'single-independent': return independentSingleSelectStrategy(props.mandatory)
+      case 'trunk': return trunkSelectStrategy(props.mandatory)
       case 'classic':
       default: return classicSelectStrategy(props.mandatory)
     }
@@ -199,8 +212,8 @@ export const useNested = (props: NestedProps) => {
     id: shallowRef(),
     root: {
       opened,
-      activatable: toRef(props, 'activatable'),
-      selectable: toRef(props, 'selectable'),
+      activatable: toRef(() => props.activatable),
+      selectable: toRef(() => props.selectable),
       activated,
       selected,
       selectedValues: computed(() => {
@@ -299,7 +312,22 @@ export const useNested = (props: NestedProps) => {
           event,
         })
 
-        newActivated && (activated.value = newActivated)
+        if (newActivated.size !== activated.value.size) {
+          activated.value = newActivated
+        } else {
+          for (const value of newActivated) {
+            if (!activated.value.has(value)) {
+              activated.value = newActivated
+              return
+            }
+          }
+          for (const value of activated.value) {
+            if (!newActivated.has(value)) {
+              activated.value = newActivated
+              return
+            }
+          }
+        }
       },
       children,
       parents,
@@ -312,11 +340,11 @@ export const useNested = (props: NestedProps) => {
   return nested.root
 }
 
-export const useNestedItem = (id: Ref<unknown>, isGroup: boolean) => {
+export const useNestedItem = (id: MaybeRefOrGetter<unknown>, isGroup: boolean) => {
   const parent = inject(VNestedSymbol, emptyNested)
 
-  const uidSymbol = Symbol(getUid())
-  const computedId = computed(() => id.value !== undefined ? id.value : uidSymbol)
+  const uidSymbol = Symbol('nested item')
+  const computedId = computed(() => toValue(id) ?? uidSymbol)
 
   const item = {
     ...parent,
@@ -329,12 +357,14 @@ export const useNestedItem = (id: Ref<unknown>, isGroup: boolean) => {
     isActivated: computed(() => parent.root.activated.value.has(toRaw(computedId.value))),
     select: (selected: boolean, e?: Event) => parent.root.select(computedId.value, selected, e),
     isSelected: computed(() => parent.root.selected.value.get(toRaw(computedId.value)) === 'on'),
-    isIndeterminate: computed(() => parent.root.selected.value.get(computedId.value) === 'indeterminate'),
+    isIndeterminate: computed(() => parent.root.selected.value.get(toRaw(computedId.value)) === 'indeterminate'),
     isLeaf: computed(() => !parent.root.children.value.get(computedId.value)),
     isGroupActivator: parent.isGroupActivator,
   }
 
-  !parent.isGroupActivator && parent.root.register(computedId.value, parent.id.value, isGroup)
+  onBeforeMount(() => {
+    !parent.isGroupActivator && parent.root.register(computedId.value, parent.id.value, isGroup)
+  })
 
   onBeforeUnmount(() => {
     !parent.isGroupActivator && parent.root.unregister(computedId.value)
