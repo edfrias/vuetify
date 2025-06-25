@@ -8,7 +8,7 @@ import { makeDensityProps } from '@/composables/density'
 import { IconValue } from '@/composables/icons'
 
 // Utilities
-import { computed, reactive, toRaw, withModifiers } from 'vue'
+import { computed, mergeProps, reactive, ref, toRaw } from 'vue'
 import { genericComponent, propsFactory } from '@/util'
 
 // Types
@@ -51,10 +51,15 @@ export const makeVTreeviewChildrenProps = propsFactory({
   falseIcon: IconValue,
   trueIcon: IconValue,
   returnObject: Boolean,
+  activatable: Boolean,
   selectable: Boolean,
   selectedColor: String,
   selectStrategy: [String, Function, Object] as PropType<SelectStrategyProp>,
-
+  index: Number,
+  path: {
+    type: Array as PropType<number[]>,
+    default: () => [],
+  },
   ...makeDensityProps(),
 }, 'VTreeviewChildren')
 
@@ -70,8 +75,14 @@ export const VTreeviewChildren = genericComponent<new <T extends InternalListIte
 
   setup (props, { slots }) {
     const isLoading = reactive(new Set<unknown>())
+    const activatorItems = ref<VTreeviewItem[]>([])
 
-    const isClickOnOpen = computed(() => !props.disabled && (props.openOnClick != null ? props.openOnClick : props.selectable))
+    const isClickOnOpen = computed(() => (
+      !props.disabled && (
+        props.openOnClick != null
+          ? props.openOnClick
+          : props.selectable && !props.activatable
+      )))
 
     async function checkChildren (item: InternalListItem) {
       try {
@@ -88,13 +99,22 @@ export const VTreeviewChildren = genericComponent<new <T extends InternalListIte
 
     function selectItem (select: (value: boolean) => void, isSelected: boolean) {
       if (props.selectable) {
-        select(!isSelected)
+        select(isSelected)
       }
     }
 
-    return () => slots.default?.() ?? props.items?.map(item => {
+    return () => slots.default?.() ?? props.items?.map((item, index) => {
       const { children, props: itemProps } = item
       const loading = isLoading.has(item.value)
+
+      const treeItemProps = {
+        index,
+        depth: props.path?.length ?? 0,
+        isFirst: index === 0,
+        isLast: props.items ? props.items.length - 1 === index : false,
+        path: [...props.path, index],
+      }
+
       const slotsWithItem = {
         prepend: slotProps => (
           <>
@@ -111,7 +131,8 @@ export const VTreeviewChildren = genericComponent<new <T extends InternalListIte
                   indeterminateIcon={ props.indeterminateIcon }
                   falseIcon={ props.falseIcon }
                   trueIcon={ props.trueIcon }
-                  onClick={ withModifiers(() => selectItem(slotProps.select, slotProps.isSelected), ['stop']) }
+                  onUpdate:modelValue={ v => selectItem(slotProps.select, v) }
+                  onClick={ (e: PointerEvent) => e.stopPropagation() }
                   onKeydown={ (e: KeyboardEvent) => {
                     if (!['Enter', 'Space'].includes(e.key)) return
                     e.stopPropagation()
@@ -121,21 +142,24 @@ export const VTreeviewChildren = genericComponent<new <T extends InternalListIte
               </div>
             )}
 
-            { slots.prepend?.({ ...slotProps, item: item.raw, internalItem: item }) }
+            { slots.prepend?.({ ...slotProps, ...treeItemProps, item: item.raw, internalItem: item }) }
           </>
         ),
-        append: slots.append ? slotProps => slots.append?.({ ...slotProps, item: item.raw, internalItem: item }) : undefined,
+        append: slots.append
+          ? slotProps => slots.append?.({ ...slotProps, ...treeItemProps, item: item.raw, internalItem: item })
+          : undefined,
         title: slots.title ? slotProps => slots.title?.({ ...slotProps, item: item.raw, internalItem: item }) : undefined,
         subtitle: slots.subtitle ? slotProps => slots.subtitle?.({ ...slotProps, item: item.raw, internalItem: item }) : undefined,
       } satisfies VTreeviewItem['$props']['$children']
 
       const treeviewGroupProps = VTreeviewGroup.filterProps(itemProps)
-      const treeviewChildrenProps = VTreeviewChildren.filterProps(props)
+      const treeviewChildrenProps = VTreeviewChildren.filterProps({ ...props, ...treeItemProps })
 
       return children ? (
         <VTreeviewGroup
           { ...treeviewGroupProps }
           value={ props.returnObject ? item.raw : treeviewGroupProps?.value }
+          rawId={ treeviewGroupProps?.value }
         >
           {{
             activator: ({ props: activatorProps }) => {
@@ -144,11 +168,14 @@ export const VTreeviewChildren = genericComponent<new <T extends InternalListIte
                 ...activatorProps,
                 value: itemProps?.value,
                 onToggleExpand: [() => checkChildren(item), activatorProps.onClick] as any,
-                onClick: isClickOnOpen.value ? [() => checkChildren(item), activatorProps.onClick] as any : undefined,
+                onClick: isClickOnOpen.value
+                  ? [() => checkChildren(item), activatorProps.onClick] as any
+                  : () => selectItem(activatorItems.value[index]?.select, !activatorItems.value[index]?.isSelected),
               }
 
               return (
                 <VTreeviewItem
+                  ref={ el => activatorItems.value[index] = el as VTreeviewItem }
                   { ...listItemProps }
                   value={ props.returnObject ? item.raw : itemProps.value }
                   loading={ loading }

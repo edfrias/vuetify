@@ -8,11 +8,12 @@ import { makeVListItemProps, VListItem } from '@/components/VList/VListItem'
 import { VProgressCircular } from '@/components/VProgressCircular'
 
 // Composables
+import { forwardRefs } from '@/composables/forwardRefs'
 import { IconValue } from '@/composables/icons'
 
 // Utilities
 import { computed, inject, ref, toRaw } from 'vue'
-import { genericComponent, omit, propsFactory, useRender } from '@/util'
+import { genericComponent, propsFactory, useRender } from '@/util'
 
 // Types
 import { VTreeviewSymbol } from './shared'
@@ -62,11 +63,12 @@ export const VTreeviewItem = genericComponent<VListItemSlots>()({
 
     function onClickAction (e: PointerEvent) {
       e.preventDefault()
+      e.stopPropagation()
       emit('toggleExpand', e)
     }
 
     useRender(() => {
-      const listItemProps = omit(VListItem.filterProps(props), ['onClick'])
+      const listItemProps = VListItem.filterProps(props)
       const hasPrepend = slots.prepend || props.toggleIcon
 
       return (
@@ -83,34 +85,32 @@ export const VTreeviewItem = genericComponent<VListItemSlots>()({
             props.class,
           ]}
           ripple={ false }
-          onClick={ props.onClick ?? activateGroupActivator }
+          onClick={ activateGroupActivator }
         >
           {{
             ...slots,
             prepend: hasPrepend ? slotProps => {
               return (
                 <>
-                  <VListItemAction start={ false }>
+                  <VListItemAction start>
                     { props.toggleIcon ? (
-                        <VBtn
-                          density="compact"
-                          icon={ props.toggleIcon }
-                          loading={ props.loading }
-                          variant="text"
-                          onClick={ onClickAction }
-                        >
-                          {{
-                            loader () {
-                              return (
-                                <VProgressCircular
-                                  indeterminate="disable-shrink"
-                                  size="20"
-                                  width="2"
-                                />
-                              )
-                            },
-                          }}
-                        </VBtn>
+                      <VBtn
+                        density="compact"
+                        icon={ props.toggleIcon }
+                        loading={ props.loading }
+                        variant="text"
+                        onClick={ onClickAction }
+                      >
+                        {{
+                          loader: () => (
+                            <VProgressCircular
+                              indeterminate="disable-shrink"
+                              size="20"
+                              width="2"
+                            />
+                          ),
+                        }}
+                      </VBtn>
                     ) : (
                       <div class="v-treeview-item__level" />
                     )}
@@ -125,7 +125,7 @@ export const VTreeviewItem = genericComponent<VListItemSlots>()({
       )
     })
 
-    return {}
+    return forwardRefs({}, vListItemRef)
   },
 })
 

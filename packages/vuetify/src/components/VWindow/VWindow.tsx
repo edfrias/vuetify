@@ -12,7 +12,7 @@ import { makeTagProps } from '@/composables/tag'
 import { makeThemeProps, provideTheme } from '@/composables/theme'
 
 // Directives
-import { Touch } from '@/directives/touch'
+import vTouch from '@/directives/touch'
 
 // Utilities
 import { computed, provide, ref, shallowRef, toRef, watch } from 'vue'
@@ -65,6 +65,7 @@ export const makeVWindowProps = propsFactory({
     type: [Boolean, String],
     validator: (v: any) => typeof v === 'boolean' || v === 'hover',
   },
+  verticalArrows: [Boolean, String] as PropType<boolean | 'left' | 'right'>,
   touch: {
     type: [Object, Boolean] as PropType<boolean | TouchHandlers>,
     default: undefined,
@@ -100,9 +101,7 @@ export const VWindow = genericComponent<new <T>(
 ) => GenericProps<typeof props, typeof slots>>()({
   name: 'VWindow',
 
-  directives: {
-    Touch,
-  },
+  directives: { vTouch },
 
   props: makeVWindowProps(),
 
@@ -230,6 +229,7 @@ export const VWindow = genericComponent<new <T>(
           'v-window',
           {
             'v-window--show-arrows-on-hover': props.showArrows === 'hover',
+            'v-window--vertical-arrows': !!props.verticalArrows,
           },
           themeClasses.value,
           props.class,
@@ -246,7 +246,13 @@ export const VWindow = genericComponent<new <T>(
           { slots.default?.({ group }) }
 
           { props.showArrows !== false && (
-            <div class="v-window__controls">
+            <div
+              class={[
+                'v-window__controls',
+                { 'v-window__controls--left': props.verticalArrows === 'left' || props.verticalArrows === true },
+                { 'v-window__controls--right': props.verticalArrows === 'right' },
+              ]}
+            >
               { arrows.value }
             </div>
           )}

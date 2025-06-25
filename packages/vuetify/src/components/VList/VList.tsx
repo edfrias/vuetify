@@ -48,7 +48,7 @@ export interface InternalListItem<T = any> extends ListItem<T> {
 function transformItem (props: ItemProps & { itemType?: string }, item: any): InternalListItem {
   const type = getPropertyFromItem(item, props.itemType, 'item')
   const title = isPrimitive(item) ? item : getPropertyFromItem(item, props.itemTitle)
-  const value = getPropertyFromItem(item, props.itemValue, undefined)
+  const value = isPrimitive(item) ? item : getPropertyFromItem(item, props.itemValue, undefined)
   const children = getPropertyFromItem(item, props.itemChildren)
   const itemProps = props.itemProps === true
     ? omit(item, ['children'])
@@ -93,6 +93,7 @@ export const makeVListProps = propsFactory({
   activeClass: String,
   bgColor: String,
   disabled: Boolean,
+  filterable: Boolean,
   expandIcon: IconValue,
   collapseIcon: IconValue,
   lines: {
@@ -176,7 +177,9 @@ export const VList = genericComponent<new <
     const baseColor = toRef(() => props.baseColor)
     const color = toRef(() => props.color)
 
-    createList()
+    createList({
+      filterable: props.filterable,
+    })
 
     provideDefaults({
       VListGroup: {
@@ -241,7 +244,7 @@ export const VList = genericComponent<new <
       isFocused.value = true
     }
 
-    function focus (location?: 'next' | 'prev' | 'first' | 'last') {
+    function focus (location?: 'next' | 'prev' | 'first' | 'last' | number) {
       if (contentRef.value) {
         return focusChild(contentRef.value, location)
       }

@@ -42,6 +42,7 @@ export const makeVListGroupProps = propsFactory({
     type: IconValue,
     default: '$expand',
   },
+  rawId: [String, Number],
   prependIcon: IconValue,
   appendIcon: IconValue,
   fluid: Boolean,
@@ -60,11 +61,10 @@ export const VListGroup = genericComponent<VListGroupSlots>()({
 
   setup (props, { slots }) {
     const { isOpen, open, id: _id } = useNestedItem(() => props.value, true)
-    const id = computed(() => `v-list-group--id-${String(_id.value)}`)
+    const id = computed(() => `v-list-group--id-${String(props.rawId ?? _id.value)}`)
     const { isBooted } = useSsrBoot()
 
     function onClick (e: Event) {
-      e.stopPropagation()
       if (['INPUT', 'TEXTAREA'].includes((e.target as Element)?.tagName)) return
       open(!isOpen.value, e)
     }
